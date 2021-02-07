@@ -12,17 +12,13 @@ const ITEM_LIMIT: usize = 4;
 
 fn main() -> Result<(), ureq::Error> {
     // Get all parameter into one space separated query
-    let query = env::args()
-        .skip(1)
-        .map(|i| i.clone())
-        .collect::<Vec<String>>()
-        .join(" ");
+    let query = env::args().skip(1).collect::<Vec<String>>().join(" ");
 
     // Check query not being empty
     if query.is_empty() {
         println!(
             "Usage: {} [<Keywords>]",
-            get_exec_name().unwrap_or("jisho-cli".to_owned())
+            get_exec_name().unwrap_or_else(|| "jisho-cli".to_owned())
         );
 
         return Ok(());
@@ -98,7 +94,6 @@ fn format_sense(value: &Value, index: usize) -> String {
         index,
         value_to_str(english_definiton.get(0).unwrap())
     )
-    .to_string()
 }
 
 fn format_tags(value: &Value) -> String {
@@ -111,7 +106,7 @@ fn format_tags(value: &Value) -> String {
 
     if let Some(jlpt) = value.get("jlpt") {
         let jlpt = value_to_arr(&jlpt);
-        if jlpt.len() > 0 {
+        if !jlpt.is_empty() {
             let jlpt = value_to_str(jlpt.get(0).unwrap())
                 .replace("jlpt-", "")
                 .to_uppercase();
@@ -133,7 +128,7 @@ fn value_to_bool(value: &Value) -> bool {
     }
 }
 
-fn value_to_str<'a>(value: &'a Value) -> &'a str {
+fn value_to_str(value: &Value) -> &str {
     match value {
         Value::String(s) => s,
         _ => unreachable!(),
