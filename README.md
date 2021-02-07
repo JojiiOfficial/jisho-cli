@@ -1,6 +1,9 @@
 # jisho-cli
 A very simple cli tool to lookup Japanese words using jisho.org's API
 
+<br>
+<img src=".img/hV3BeXWDTmREm8ujOkR3v6902.png"/>
+
 # Installation
 
 From my [Arch repository](https://repo.jojii.de)
