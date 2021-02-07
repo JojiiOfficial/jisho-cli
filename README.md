@@ -2,7 +2,7 @@
 A very simple cli tool to look up Japanese words using jisho.org's API
 
 <br>
-<img src=".img/hV3BeXWDTmREm8ujOkR3v6902.png"/>
+<img src=".img/hV3BeXWDTmREm8ujOkR3v6901.png"/>
 
 # Installation
 

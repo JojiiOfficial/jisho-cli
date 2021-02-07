@@ -92,7 +92,7 @@ fn format_sense(value: &Value, index: usize) -> String {
 
     format!(
         "{}. {} {}",
-        index,
+        index + 1,
         value_to_str(english_definiton.get(0).unwrap()),
         tags
     )
