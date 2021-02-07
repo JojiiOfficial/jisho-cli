@@ -47,30 +47,28 @@ fn main() -> Result<(), ureq::Error> {
             break;
         }
 
-        print_item(&query, entry);
-        println!();
+        if print_item(&query, entry).is_some() && i + 1 != ITEM_LIMIT {
+            println!();
+        }
     }
 
     Ok(())
 }
 
-fn print_item(query: &str, value: &Value) {
-    let japanese = value_to_arr(value.get("japanese").unwrap())
-        .get(0)
-        .unwrap()
-        .to_owned();
+fn print_item(query: &str, value: &Value) -> Option<()> {
+    let japanese = value_to_arr(value.get("japanese")?).get(0)?.to_owned();
 
     let reading = japanese
         .get("reading")
         .map(|i| value_to_str(i))
         .unwrap_or(query);
 
-    let word = value_to_str(japanese.get("word").unwrap());
+    let word = value_to_str(japanese.get("word")?);
 
     println!("{}[{}] {}", word, reading, format_result_tags(value));
 
     // Print senses
-    let senses = value.get("senses").unwrap();
+    let senses = value.get("senses")?;
     for (i, sense) in value_to_arr(senses).iter().enumerate() {
         let sense_str = format_sense(&sense, i);
         if sense_str.is_empty() {
@@ -79,6 +77,8 @@ fn print_item(query: &str, value: &Value) {
 
         println!(" {}", sense_str);
     }
+
+    Some(())
 }
 
 fn format_sense(value: &Value, index: usize) -> String {
