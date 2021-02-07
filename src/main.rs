@@ -67,7 +67,7 @@ fn print_item(query: &str, value: &Value) {
 
     let word = value_to_str(japanese.get("word").unwrap());
 
-    println!("{}[{}] {}", word, reading, format_tags(value));
+    println!("{}[{}] {}", word, reading, format_result_tags(value));
 
     // Print senses
     let senses = value.get("senses").unwrap();
@@ -88,15 +88,18 @@ fn format_sense(value: &Value, index: usize) -> String {
     }
 
     let english_definiton = value_to_arr(english_definitons.unwrap());
+    let tags = format_sense_tags(value);
 
     format!(
-        "{}. {}",
+        "{}. {} {}",
         index,
-        value_to_str(english_definiton.get(0).unwrap())
+        value_to_str(english_definiton.get(0).unwrap()),
+        tags
     )
 }
 
-fn format_tags(value: &Value) -> String {
+/// Format tags from a whole meaning
+fn format_result_tags(value: &Value) -> String {
     let mut builder = String::new();
 
     let is_common_val = value.get("is_common");
@@ -115,6 +118,29 @@ fn format_tags(value: &Value) -> String {
     }
 
     builder
+}
+
+/// Format tags from a single sense entry
+fn format_sense_tags(value: &Value) -> String {
+    let mut builder = String::new();
+
+    if let Some(tags) = value.get("tags") {
+        let tags = value_to_arr(tags);
+
+        for tag in tags {
+            let t = format_sense_tag(value_to_str(tag));
+            builder.push_str(t.as_str())
+        }
+    }
+
+    builder
+}
+
+fn format_sense_tag(tag: &str) -> String {
+    match tag {
+        "Usually written using kana alone" => "(UK)".to_string(),
+        s => format!("({})", s),
+    }
 }
 
 //
