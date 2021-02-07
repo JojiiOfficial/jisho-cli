@@ -11,11 +11,22 @@ macro_rules! JISHO_URL {
 const ITEM_LIMIT: usize = 4;
 
 fn main() -> Result<(), ureq::Error> {
+    // Get all parameter into one space separated query
     let query = env::args()
         .skip(1)
         .map(|i| i.clone())
         .collect::<Vec<String>>()
         .join(" ");
+
+    // Check query not being empty
+    if query.is_empty() {
+        println!(
+            "Usage: {} [<Keywords>]",
+            get_exec_name().unwrap_or("jisho-cli".to_owned())
+        );
+
+        return Ok(());
+    }
 
     // Do API request
     let body: Value = ureq::get(&format!(JISHO_URL!(), query))
@@ -134,4 +145,11 @@ fn value_to_arr<'a>(value: &'a Value) -> &'a Vec<Value> {
         Value::Array(a) => a,
         _ => unreachable!(),
     }
+}
+
+fn get_exec_name() -> Option<String> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|pb| pb.file_name().map(|s| s.to_os_string()))
+        .and_then(|s| s.into_string().ok())
 }
