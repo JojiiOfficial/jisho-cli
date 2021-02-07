@@ -6,6 +6,11 @@ A very simple cli tool to look up Japanese words using jisho.org's API
 
 # Installation
 
+From [Release tab](https://github.com/JojiiOfficial/jisho-cli/releases)
+<br>
+> Simply download the binary
+<br>
+
 From my [Arch repository](https://repo.jojii.de)
 ```
 sudo pacman -S jisho
