@@ -111,7 +111,11 @@ fn format_sense(value: &Value, index: usize) -> String {
             .collect::<Vec<&str>>()
             .join(", ");
 
-        format!("[{}]", parts.bright_blue())
+        if parts.len() > 0 {
+            format!("[{}]", parts.bright_blue())
+        } else {
+            String::new()
+        }
     } else {
         String::new()
     };
