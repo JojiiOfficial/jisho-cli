@@ -83,22 +83,51 @@ fn print_item(query: &str, value: &Value) -> Option<()> {
 
 fn format_sense(value: &Value, index: usize) -> String {
     let english_definitons = value.get("english_definitions");
+    let parts_of_speech = value.get("parts_of_speech");
     if english_definitons.is_none() {
         return "".to_owned();
     }
 
     let english_definiton = value_to_arr(english_definitons.unwrap());
+
+    let parts_of_speech = if parts_of_speech.is_some() {
+        let parts = value_to_arr(parts_of_speech.unwrap())
+            .to_owned()
+            .iter()
+            .map(|i| {
+                let s = value_to_str(i);
+                match s {
+                    "Suru verb - irregular" => "Irregular verb",
+                    "Ichidan verb" => "iru/eru verb",
+                    _ => {
+                        if s.contains("Godan verb") {
+                            "Godan verb"
+                        } else {
+                            s
+                        }
+                    }
+                }
+            })
+            .collect::<Vec<&str>>()
+            .join(", ");
+
+        format!("[{}]", parts.bright_blue())
+    } else {
+        String::new()
+    };
+
     let tags = format_sense_tags(value);
 
     format!(
-        "{}. {} {}",
+        "{}. {} {} {}",
         index + 1,
         english_definiton
             .iter()
             .map(|i| value_to_str(i))
             .collect::<Vec<&str>>()
             .join(", "),
-        tags
+        tags,
+        parts_of_speech
     )
 }
 
