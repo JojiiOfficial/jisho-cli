@@ -93,7 +93,11 @@ fn format_sense(value: &Value, index: usize) -> String {
     format!(
         "{}. {} {}",
         index + 1,
-        value_to_str(english_definiton.get(0).unwrap()),
+        english_definiton
+            .iter()
+            .map(|i| value_to_str(i))
+            .collect::<Vec<&str>>()
+            .join(", "),
         tags
     )
 }
