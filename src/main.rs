@@ -63,7 +63,7 @@ fn print_item(query: &str, value: &Value) -> Option<()> {
         .map(|i| value_to_str(i))
         .unwrap_or(query);
 
-    let word = value_to_str(japanese.get("word")?);
+    let word = value_to_str(japanese.get("word").unwrap_or(japanese.get("reading")?));
 
     println!("{}[{}] {}", word, reading, format_result_tags(value));
 
