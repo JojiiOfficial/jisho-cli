@@ -51,7 +51,7 @@ fn main() -> Result<(), ureq::Error> {
             break;
         }
 
-        if print_item(&options.query, entry).is_some() && i != options.limit {
+        if print_item(&options.query, entry).is_some() && i + 2 <= options.limit {
             println!();
         }
     }
@@ -237,6 +237,10 @@ fn parse_args() -> Options {
         */
 
         ap.parse_args_or_exit();
+    }
+
+    if options.limit == 0 {
+        options.limit = 1;
     }
 
     options.query = query_vec.join(" ");
