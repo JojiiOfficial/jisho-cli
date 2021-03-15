@@ -1,31 +1,35 @@
+use argparse::{ArgumentParser, List, Print, Store};
 use colored::*;
 use serde_json::Value;
-
-use std::env;
 
 macro_rules! JISHO_URL {
     () => {
         "https://jisho.org/api/v1/search/words?keyword={}"
     };
 }
-const ITEM_LIMIT: usize = 4;
+
+#[derive(Debug, Clone)]
+struct Options {
+    limit: usize,
+    query: String,
+    kanji: bool, // Sadly not (yet) supported by jisho.org's API
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            limit: 4,
+            query: String::default(),
+            kanji: false,
+        }
+    }
+}
 
 fn main() -> Result<(), ureq::Error> {
-    // Get all parameter into one space separated query
-    let query = env::args().skip(1).collect::<Vec<String>>().join(" ");
-
-    // Check query not being empty
-    if query.is_empty() {
-        println!(
-            "Usage: {} [<Keywords>]",
-            get_exec_name().unwrap_or_else(|| "jisho-cli".to_owned())
-        );
-
-        return Ok(());
-    }
+    let options = parse_args();
 
     // Do API request
-    let body: Value = ureq::get(&format!(JISHO_URL!(), query))
+    let body: Value = ureq::get(&format!(JISHO_URL!(), options.query))
         .call()?
         .into_json()?;
 
@@ -43,11 +47,11 @@ fn main() -> Result<(), ureq::Error> {
 
     // Iterate over meanings and print them
     for (i, entry) in body.iter().enumerate() {
-        if i > ITEM_LIMIT {
+        if i > options.limit {
             break;
         }
 
-        if print_item(&query, entry).is_some() && i + 1 != ITEM_LIMIT {
+        if print_item(&options.query, entry).is_some() && i != options.limit {
             println!();
         }
     }
@@ -90,8 +94,8 @@ fn format_sense(value: &Value, index: usize) -> String {
 
     let english_definiton = value_to_arr(english_definitons.unwrap());
 
-    let parts_of_speech = if parts_of_speech.is_some() {
-        let parts = value_to_arr(parts_of_speech.unwrap())
+    let parts_of_speech = if let Some(parts_of_speech) = parts_of_speech {
+        let parts = value_to_arr(parts_of_speech)
             .to_owned()
             .iter()
             .map(|i| {
@@ -111,10 +115,10 @@ fn format_sense(value: &Value, index: usize) -> String {
             .collect::<Vec<&str>>()
             .join(", ");
 
-        if parts.len() > 0 {
-            format!("[{}]", parts.bright_blue())
-        } else {
+        if parts.is_empty() {
             String::new()
+        } else {
+            format!("[{}]", parts.bright_blue())
         }
     } else {
         String::new()
@@ -198,16 +202,43 @@ fn value_to_str(value: &Value) -> &str {
     }
 }
 
-fn value_to_arr<'a>(value: &'a Value) -> &'a Vec<Value> {
+fn value_to_arr(value: &Value) -> &Vec<Value> {
     match value {
         Value::Array(a) => a,
         _ => unreachable!(),
     }
 }
 
-fn get_exec_name() -> Option<String> {
-    std::env::current_exe()
-        .ok()
-        .and_then(|pb| pb.file_name().map(|s| s.to_os_string()))
-        .and_then(|s| s.into_string().ok())
+fn parse_args() -> Options {
+    let mut options = Options::default();
+    let mut query_vec: Vec<String> = Vec::new();
+    {
+        let mut ap = ArgumentParser::new();
+        ap.set_description("Use jisho.org from cli");
+        ap.add_option(
+            &["-V", "--version"],
+            Print(env!("CARGO_PKG_VERSION").to_string()),
+            "Show version",
+        );
+        ap.refer(&mut options.limit).add_option(
+            &["-n", "--limit"],
+            Store,
+            "Limit the amount of results",
+        );
+        ap.refer(&mut query_vec)
+            .add_argument("Query", List, "The query to search for");
+
+        /* Uncomment when supported by jisho.org
+        ap.refer(&mut options.kanji).add_option(
+            &["--kanji", "-k"],
+            StoreFalse,
+            "Look up a certain kanji",
+        );
+        */
+
+        ap.parse_args_or_exit();
+    }
+
+    options.query = query_vec.join(" ");
+    options
 }
