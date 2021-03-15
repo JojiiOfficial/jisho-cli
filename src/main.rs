@@ -47,7 +47,7 @@ fn main() -> Result<(), ureq::Error> {
 
     // Iterate over meanings and print them
     for (i, entry) in body.iter().enumerate() {
-        if i > options.limit {
+        if i >= options.limit {
             break;
         }
 
