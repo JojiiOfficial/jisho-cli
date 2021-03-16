@@ -1,4 +1,6 @@
-use argparse::{ArgumentParser, List, Print, Store};
+use std::io::{stdin, stdout, Write};
+
+use argparse::{ArgumentParser, List, Print, Store, StoreTrue};
 use colored::*;
 use serde_json::Value;
 
@@ -13,6 +15,7 @@ struct Options {
     limit: usize,
     query: String,
     kanji: bool, // Sadly not (yet) supported by jisho.org's API
+    interactive: bool,
 }
 
 impl Default for Options {
@@ -21,6 +24,7 @@ impl Default for Options {
             limit: 4,
             query: String::default(),
             kanji: false,
+            interactive: false,
         }
     }
 }
@@ -28,32 +32,62 @@ impl Default for Options {
 fn main() -> Result<(), ureq::Error> {
     let options = parse_args();
 
-    // Do API request
-    let body: Value = ureq::get(&format!(JISHO_URL!(), options.query))
-        .call()?
-        .into_json()?;
+    let mut query = {
+        if options.interactive {
+            print!("=> ");
+            stdout().flush().unwrap();
 
-    // Try to get the data json-object
-    let body = value_to_arr({
-        let body = body.get("data");
+            let mut o = String::new();
+            stdin().read_line(&mut o).expect("Can't read from stdin");
+            o
+        } else {
+            options.query.clone()
+        }
+    };
 
-        if body.is_none() {
-            eprintln!("Error! Invalid response");
-            return Ok(());
+    loop {
+        // Do API request
+        let body: Value = ureq::get(&format!(JISHO_URL!(), query))
+            .call()?
+            .into_json()?;
+
+        // Try to get the data json-object
+        let body = value_to_arr({
+            let body = body.get("data");
+
+            if body.is_none() {
+                eprintln!("Error! Invalid response");
+                return Ok(());
+            }
+
+            body.unwrap()
+        });
+
+        if options.interactive {
+            println!();
         }
 
-        body.unwrap()
-    });
+        // Iterate over meanings and print them
+        for (i, entry) in body.iter().enumerate() {
+            if i >= options.limit {
+                break;
+            }
 
-    // Iterate over meanings and print them
-    for (i, entry) in body.iter().enumerate() {
-        if i >= options.limit {
+            if print_item(&query, entry).is_some() && i + 2 <= options.limit {
+                println!();
+            }
+        }
+
+        if !options.interactive {
             break;
         }
 
-        if print_item(&options.query, entry).is_some() && i + 2 <= options.limit {
-            println!();
-        }
+        print!("\n=> ");
+        stdout().flush().unwrap();
+        query.clear();
+        stdin()
+            .read_line(&mut query)
+            .expect("Can't read from stdin");
     }
 
     Ok(())
@@ -227,6 +261,12 @@ fn parse_args() -> Options {
         );
         ap.refer(&mut query_vec)
             .add_argument("Query", List, "The query to search for");
+
+        ap.refer(&mut options.interactive).add_option(
+            &["-i", "--interactive"],
+            StoreTrue,
+            "Don't exit after running a query",
+        );
 
         /* Uncomment when supported by jisho.org
         ap.refer(&mut options.kanji).add_option(
