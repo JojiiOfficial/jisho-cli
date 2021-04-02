@@ -46,35 +46,43 @@ fn main() -> Result<(), ureq::Error> {
     };
 
     loop {
-        // Do API request
-        let body: Value = ureq::get(&format!(JISHO_URL!(), query))
-            .call()?
-            .into_json()?;
+        if options.kanji {
+            // Open kanji page here
+            query.chars().into_iter().for_each(|kanji| {
+                webbrowser::open(&format!("https://jisho.org/search/{}%23kanji", kanji))
+                    .expect("Couldn't open browser");
+            });
+        } else {
+            // Do API request
+            let body: Value = ureq::get(&format!(JISHO_URL!(), query))
+                .call()?
+                .into_json()?;
 
-        // Try to get the data json-object
-        let body = value_to_arr({
-            let body = body.get("data");
+            // Try to get the data json-object
+            let body = value_to_arr({
+                let body = body.get("data");
 
-            if body.is_none() {
-                eprintln!("Error! Invalid response");
-                return Ok(());
-            }
+                if body.is_none() {
+                    eprintln!("Error! Invalid response");
+                    return Ok(());
+                }
 
-            body.unwrap()
-        });
+                body.unwrap()
+            });
 
-        if options.interactive {
-            println!();
-        }
-
-        // Iterate over meanings and print them
-        for (i, entry) in body.iter().enumerate() {
-            if i >= options.limit {
-                break;
-            }
-
-            if print_item(&query, entry).is_some() && i + 2 <= options.limit {
+            if options.interactive {
                 println!();
+            }
+
+            // Iterate over meanings and print them
+            for (i, entry) in body.iter().enumerate() {
+                if i >= options.limit {
+                    break;
+                }
+
+                if print_item(&query, entry).is_some() && i + 2 <= options.limit {
+                    println!();
+                }
             }
         }
 
@@ -268,13 +276,12 @@ fn parse_args() -> Options {
             "Don't exit after running a query",
         );
 
-        /* Uncomment when supported by jisho.org
+        /* Uncomment when supported by jisho.org */
         ap.refer(&mut options.kanji).add_option(
             &["--kanji", "-k"],
-            StoreFalse,
+            StoreTrue,
             "Look up a certain kanji",
         );
-        */
 
         ap.parse_args_or_exit();
     }
