@@ -1,4 +1,7 @@
-use std::io::{stdin, stdout, Write};
+use std::{
+    io::{stdin, stdout, Write},
+    thread::{self, JoinHandle},
+};
 
 use argparse::{ArgumentParser, List, Print, Store, StoreTrue};
 use colored::*;
@@ -49,10 +52,21 @@ fn main() -> Result<(), ureq::Error> {
     loop {
         if options.kanji {
             // Open kanji page here
-            query.chars().into_iter().for_each(|kanji| {
-                webbrowser::open(&format!("https://jisho.org/search/{}%23kanji", kanji))
-                    .expect("Couldn't open browser");
-            });
+            let threads = query
+                .chars()
+                .into_iter()
+                .map(|kanji| {
+                    let kanji = kanji.clone();
+                    thread::spawn(move || {
+                        webbrowser::open(&format!("https://jisho.org/search/{}%23kanji", kanji))
+                            .expect("Couldn't open browser");
+                    })
+                })
+                .collect::<Vec<JoinHandle<()>>>();
+
+            for thread in threads {
+                thread.join().unwrap();
+            }
         } else {
             // Do API request
             let body: Value = ureq::get(&format!(JISHO_URL!(), query))
