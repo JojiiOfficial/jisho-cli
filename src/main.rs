@@ -34,11 +34,12 @@ fn main() -> Result<(), ureq::Error> {
 
     let mut query = {
         if options.interactive {
-            print!("=> ");
-            stdout().flush().unwrap();
-
             let mut o = String::new();
-            stdin().read_line(&mut o).expect("Can't read from stdin");
+            while o.trim().is_empty() {
+                print!("=> ");
+                stdout().flush().unwrap();
+                stdin().read_line(&mut o).expect("Can't read from stdin");
+            }
             o
         } else {
             options.query.clone()
@@ -84,18 +85,21 @@ fn main() -> Result<(), ureq::Error> {
                     println!();
                 }
             }
+            println!();
         }
 
         if !options.interactive {
             break;
         }
 
-        print!("\n=> ");
-        stdout().flush().unwrap();
         query.clear();
-        stdin()
-            .read_line(&mut query)
-            .expect("Can't read from stdin");
+        while query.trim().is_empty() {
+            print!("=> ");
+            stdout().flush().unwrap();
+            stdin()
+                .read_line(&mut query)
+                .expect("Can't read from stdin");
+        }
     }
 
     Ok(())
