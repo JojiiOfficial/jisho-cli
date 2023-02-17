@@ -1,11 +1,15 @@
 use std::{
     io::{stdin, stdout, Write},
     thread::{self, JoinHandle},
+    env,
 };
 
+use libc::{c_ushort, ioctl, STDOUT_FILENO, TIOCGWINSZ};
 use argparse::{ArgumentParser, List, Print, Store, StoreTrue};
 use colored::*;
 use serde_json::Value;
+use atty::Stream;
+use pager::Pager;
 
 macro_rules! JISHO_URL {
     () => {
@@ -24,7 +28,7 @@ struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            limit: 4,
+            limit: 0,
             query: String::default(),
             kanji: false,
             interactive: false,
@@ -33,6 +37,18 @@ impl Default for Options {
 }
 
 fn main() -> Result<(), ureq::Error> {
+    let term_size;
+
+    if atty::is(Stream::Stdout) {
+        match terminal_size() {
+            Ok(s) => term_size = s,
+            Err(_e) => term_size = 0
+        }
+    } else {
+        term_size = 0;
+    }
+
+    let mut lines_output = 0;
     let options = parse_args();
 
     let mut query = {
@@ -89,17 +105,30 @@ fn main() -> Result<(), ureq::Error> {
                 println!();
             }
 
+            let mut output = String::new();
             // Iterate over meanings and print them
             for (i, entry) in body.iter().enumerate() {
-                if i >= options.limit {
+                if i >= options.limit && options.limit != 0 {
                     break;
                 }
-
-                if print_item(&query, entry).is_some() && i + 2 <= options.limit {
-                    println!();
+                match print_item(&query, entry, &mut output) {
+                    Some(r) => lines_output += r,
+                    None => continue,
                 }
+
+                output.push('\n');
+                lines_output += 1;
             }
-            println!();
+            output.pop();
+            lines_output -= 1;
+
+            if lines_output >= term_size - 1 && term_size != 0{
+                /* output is a different process that is not a tty (i.e. less), but we want to keep colour */
+                env::set_var("CLICOLOR_FORCE", "1");
+                Pager::with_pager("less -R").setup();
+            }
+            print!("{}", output);
+
         }
 
         if !options.interactive {
@@ -119,7 +148,8 @@ fn main() -> Result<(), ureq::Error> {
     Ok(())
 }
 
-fn print_item(query: &str, value: &Value) -> Option<()> {
+fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> {
+    let mut aux;
     let japanese = value_to_arr(value.get("japanese")?).get(0)?.to_owned();
 
     let reading = japanese
@@ -129,20 +159,22 @@ fn print_item(query: &str, value: &Value) -> Option<()> {
 
     let word = value_to_str(japanese.get("word").unwrap_or(japanese.get("reading")?));
 
-    println!("{}[{}] {}", word, reading, format_result_tags(value));
+    aux = format!("{}[{}] {}\n", word, reading, format_result_tags(value));
+    *output += &aux;
 
     // Print senses
-    let senses = value.get("senses")?;
-    for (i, sense) in value_to_arr(senses).iter().enumerate() {
+    let senses = value_to_arr(value.get("senses")?);
+    for (i, sense) in senses.iter().enumerate() {
         let sense_str = format_sense(&sense, i);
         if sense_str.is_empty() {
             continue;
         }
 
-        println!(" {}", sense_str);
+        aux = format!(" {}\n", sense_str);
+        *output += &aux;
     }
 
-    Some(())
+    Some(senses.iter().count() + 1)
 }
 
 fn format_sense(value: &Value, index: usize) -> String {
@@ -304,10 +336,17 @@ fn parse_args() -> Options {
         ap.parse_args_or_exit();
     }
 
-    if options.limit == 0 {
-        options.limit = 1;
-    }
-
     options.query = query_vec.join(" ");
     options
+}
+
+fn terminal_size() -> Result<usize, i16> {
+    unsafe {
+        let mut size: c_ushort = 0;
+        if ioctl(STDOUT_FILENO, TIOCGWINSZ.into(), &mut size as *mut _) != 0 {
+            Err(-1)
+        } else {
+            Ok(size as usize)
+        }
+    }
 }
