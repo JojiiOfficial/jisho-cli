@@ -120,7 +120,9 @@ fn main() -> Result<(), ureq::Error> {
                 lines_output += 1;
             }
             output.pop();
-            lines_output -= 1;
+            if lines_output > 0 {
+                lines_output -= 1;
+            }
 
             if lines_output >= term_size - 1 && term_size != 0{
                 /* output is a different process that is not a tty (i.e. less), but we want to keep colour */
