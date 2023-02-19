@@ -39,10 +39,7 @@ fn main() -> Result<(), ureq::Error> {
     let term_size;
 
     if atty::is(Stream::Stdout) {
-        match terminal_size() {
-            Ok(s) => term_size = s,
-            Err(_e) => term_size = 0
-        }
+        term_size = terminal_size().unwrap_or(0);
     } else {
         term_size = 0;
     }
@@ -129,25 +126,7 @@ fn main() -> Result<(), ureq::Error> {
         if lines_output >= term_size - 1 && term_size != 0 {
             // Output is a different process that is not a tty (i.e. less), but we want to keep colour
             env::set_var("CLICOLOR_FORCE", "1");
-
-            match Command::new("less")
-                            .arg("-R")
-                            .stdin(Stdio::piped())
-                            .spawn() {
-                                Ok(mut process) => {
-                                    if let Err(e) = process.stdin.as_ref().unwrap().write_all(output.as_bytes()) {
-                                        panic!("couldn't pipe to less: {}", e);
-                                    }
-
-                                    // We don't care about the return value, only whether wait failed or not
-                                    if process.wait().is_err() {
-                                        panic!("wait() was called on non-existent child process\
-                                         - this should not be possible");
-                                    }
-                                }
-                                // less not found in PATH; print normally
-                                Err(_e) => print!("{}", output)
-                            };
+            pipe_to_less(output);
         } else {
             print!("{}", output);
         }
@@ -170,7 +149,6 @@ fn main() -> Result<(), ureq::Error> {
 }
 
 fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> {
-    let mut aux;
     let japanese = value_to_arr(value.get("japanese")?).get(0)?.to_owned();
 
     let reading = japanese
@@ -180,7 +158,7 @@ fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> 
 
     let word = value_to_str(japanese.get("word").unwrap_or(japanese.get("reading")?));
 
-    aux = format!("{}[{}] {}\n", word, reading, format_result_tags(value));
+    let mut aux = format!("{}[{}] {}\n", word, reading, format_result_tags(value));
     *output += &aux;
 
     // Print senses
@@ -359,6 +337,31 @@ fn parse_args() -> Options {
 
     options.query = query_vec.join(" ");
     options
+}
+
+fn pipe_to_less(output: String) {
+
+    let command = Command::new("less")
+                    .arg("-R")
+                    .stdin(Stdio::piped())
+                    .spawn();
+
+    match command {
+        Ok(mut process) => {
+            if let Err(e) = process.stdin.as_ref().unwrap().write_all(output.as_bytes()) {
+                panic!("couldn't pipe to less: {}", e);
+            }
+
+            // We don't care about the return value, only whether wait failed or not
+            if process.wait().is_err() {
+                panic!("wait() was called on non-existent child process\
+                 - this should not be possible");
+            }
+        }
+
+        // less not found in PATH; print normally
+        Err(_e) => print!("{}", output)
+    };
 }
 
 #[cfg(unix)]
