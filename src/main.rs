@@ -1,11 +1,14 @@
 use std::{
     io::{stdin, stdout, Write},
+    process::{Command, Stdio},
     thread::{self, JoinHandle},
+    env,
 };
 
 use argparse::{ArgumentParser, List, Print, Store, StoreTrue};
 use colored::*;
 use serde_json::Value;
+use atty::Stream;
 
 macro_rules! JISHO_URL {
     () => {
@@ -24,7 +27,7 @@ struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            limit: 4,
+            limit: 0,
             query: String::default(),
             kanji: false,
             interactive: false,
@@ -33,6 +36,14 @@ impl Default for Options {
 }
 
 fn main() -> Result<(), ureq::Error> {
+    let term_size;
+
+    if atty::is(Stream::Stdout) {
+        term_size = terminal_size().unwrap_or(0);
+    } else {
+        term_size = 0;
+    }
+
     let options = parse_args();
 
     let mut query = {
@@ -50,6 +61,9 @@ fn main() -> Result<(), ureq::Error> {
     };
 
     loop {
+        let mut lines_output = 0;
+        let mut output = String::new();
+
         if options.kanji {
             // Open kanji page here
             let threads = query
@@ -91,15 +105,30 @@ fn main() -> Result<(), ureq::Error> {
 
             // Iterate over meanings and print them
             for (i, entry) in body.iter().enumerate() {
-                if i >= options.limit {
+                if i >= options.limit && options.limit != 0 {
                     break;
                 }
-
-                if print_item(&query, entry).is_some() && i + 2 <= options.limit {
-                    println!();
+                match print_item(&query, entry, &mut output) {
+                    Some(r) => lines_output += r,
+                    None => continue,
                 }
+
+                output.push('\n');
+                lines_output += 1;
             }
-            println!();
+            output.pop();
+            if lines_output > 0 {
+                lines_output -= 1;
+            }
+
+        }
+
+        if lines_output >= term_size - 1 && term_size != 0 {
+            // Output is a different process that is not a tty (i.e. less), but we want to keep colour
+            env::set_var("CLICOLOR_FORCE", "1");
+            pipe_to_less(output);
+        } else {
+            print!("{}", output);
         }
 
         if !options.interactive {
@@ -119,7 +148,7 @@ fn main() -> Result<(), ureq::Error> {
     Ok(())
 }
 
-fn print_item(query: &str, value: &Value) -> Option<()> {
+fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> {
     let japanese = value_to_arr(value.get("japanese")?).get(0)?.to_owned();
 
     let reading = japanese
@@ -129,20 +158,22 @@ fn print_item(query: &str, value: &Value) -> Option<()> {
 
     let word = value_to_str(japanese.get("word").unwrap_or(japanese.get("reading")?));
 
-    println!("{}[{}] {}", word, reading, format_result_tags(value));
+    let mut aux = format!("{}[{}] {}\n", word, reading, format_result_tags(value));
+    *output += &aux;
 
     // Print senses
-    let senses = value.get("senses")?;
-    for (i, sense) in value_to_arr(senses).iter().enumerate() {
+    let senses = value_to_arr(value.get("senses")?);
+    for (i, sense) in senses.iter().enumerate() {
         let sense_str = format_sense(&sense, i);
         if sense_str.is_empty() {
             continue;
         }
 
-        println!(" {}", sense_str);
+        aux = format!(" {}\n", sense_str);
+        *output += &aux;
     }
 
-    Some(())
+    Some(senses.iter().count() + 1)
 }
 
 fn format_sense(value: &Value, index: usize) -> String {
@@ -304,10 +335,73 @@ fn parse_args() -> Options {
         ap.parse_args_or_exit();
     }
 
-    if options.limit == 0 {
-        options.limit = 1;
-    }
-
     options.query = query_vec.join(" ");
     options
+}
+
+fn pipe_to_less(output: String) {
+
+    let command = Command::new("less")
+                    .arg("-R")
+                    .stdin(Stdio::piped())
+                    .spawn();
+
+    match command {
+        Ok(mut process) => {
+            if let Err(e) = process.stdin.as_ref().unwrap().write_all(output.as_bytes()) {
+                panic!("couldn't pipe to less: {}", e);
+            }
+
+            // We don't care about the return value, only whether wait failed or not
+            if process.wait().is_err() {
+                panic!("wait() was called on non-existent child process\
+                 - this should not be possible");
+            }
+        }
+
+        // less not found in PATH; print normally
+        Err(_e) => print!("{}", output)
+    };
+}
+
+#[cfg(unix)]
+fn terminal_size() -> Result<usize, i16> {
+    use libc::{c_ushort, ioctl, STDOUT_FILENO, TIOCGWINSZ};
+
+    unsafe {
+        let mut size: c_ushort = 0;
+        if ioctl(STDOUT_FILENO, TIOCGWINSZ.into(), &mut size as *mut _) != 0 {
+            Err(-1)
+        } else {
+            Ok(size as usize)
+        }
+    }
+}
+
+#[cfg(windows)]
+fn terminal_size() -> Result<usize, i16> {
+    use windows_sys::Win32::System::Console::*;
+
+    unsafe {
+        let handle = GetStdHandle(STD_OUTPUT_HANDLE) as windows_sys::Win32::Foundation::HANDLE;
+
+        // Unlike the linux function, rust will complain if only part of the struct is sent
+        let mut window = CONSOLE_SCREEN_BUFFER_INFO {
+            dwSize: COORD { X: 0, Y: 0},
+            dwCursorPosition: COORD { X: 0, Y: 0},
+            wAttributes: 0,
+            dwMaximumWindowSize: COORD {X: 0, Y: 0},
+            srWindow: SMALL_RECT {
+                Top: 0,
+                Bottom: 0,
+                Left: 0,
+                Right: 0
+            }
+        };
+        if GetConsoleScreenBufferInfo(handle, &mut window) == 0 {
+            Err(0)
+        } else {
+            Ok((window.srWindow.Bottom - window.srWindow.Top) as usize)
+        }
+    }
 }
