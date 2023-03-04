@@ -150,6 +150,7 @@ fn main() -> Result<(), ureq::Error> {
 
 fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> {
     let japanese = value_to_arr(value.get("japanese")?).get(0)?.to_owned();
+    let mut num_of_lines = 0;
 
     let reading = japanese
         .get("reading")
@@ -163,24 +164,31 @@ fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> 
 
     // Print senses
     let senses = value_to_arr(value.get("senses")?);
+    let mut prev_parts_of_speech = String::new();
+
     for (i, sense) in senses.iter().enumerate() {
-        let sense_str = format_sense(&sense, i);
+        let (sense_str, bump) = format_sense(&sense, i, &mut prev_parts_of_speech);
         if sense_str.is_empty() {
             continue;
         }
+        // This bump is to keep count of lines that may or may not be printed (like noun, adverb)
+        if bump {
+            num_of_lines += 1;
+        }
 
-        aux = format!(" {}\n", sense_str);
+        aux = format!("    {}\n", sense_str);
         *output += &aux;
     }
 
-    Some(senses.iter().count() + 1)
+    num_of_lines += senses.iter().count() + 1;
+    Some(num_of_lines)
 }
 
-fn format_sense(value: &Value, index: usize) -> String {
+fn format_sense(value: &Value, index: usize, prev_parts_of_speech: &mut String) -> (String, bool) {
     let english_definitons = value.get("english_definitions");
     let parts_of_speech = value.get("parts_of_speech");
     if english_definitons.is_none() {
-        return "".to_owned();
+        return ("".to_owned(), false);
     }
 
     let english_definiton = value_to_arr(english_definitons.unwrap());
@@ -193,7 +201,6 @@ fn format_sense(value: &Value, index: usize) -> String {
                 let s = value_to_str(i);
                 match s {
                     "Suru verb - irregular" => "Irregular verb",
-                    "Ichidan verb" => "iru/eru verb",
                     _ => {
                         if s.contains("Godan verb") {
                             "Godan verb"
@@ -206,28 +213,36 @@ fn format_sense(value: &Value, index: usize) -> String {
             .collect::<Vec<&str>>()
             .join(", ");
 
-        if parts.is_empty() {
-            String::new()
+        // Do not repeat a meaning's part of speech if it is the same as the previous meaning
+        if !parts.is_empty() && parts != *prev_parts_of_speech {
+            *prev_parts_of_speech = parts.clone();
+            format!("[{}]\n    ", parts.bright_blue())
         } else {
-            format!("[{}]", parts.bright_blue())
+            String::new()
         }
     } else {
         String::new()
     };
 
+    let bump = if parts_of_speech.is_empty() {
+        false
+    } else {
+        true
+    };
+
     let tags = format_sense_tags(value);
 
-    format!(
-        "{}. {} {} {}",
-        index + 1,
+    (format!(
+        "{}{}. {} {}",
+        parts_of_speech,
+        (index + 1).to_string().bright_black(),
         english_definiton
             .iter()
             .map(|i| value_to_str(i))
             .collect::<Vec<&str>>()
             .join(", "),
         tags,
-        parts_of_speech
-    )
+    ), bump)
 }
 
 /// Format tags from a whole meaning
