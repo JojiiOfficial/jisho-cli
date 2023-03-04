@@ -216,7 +216,7 @@ fn format_sense(value: &Value, index: usize, prev_parts_of_speech: &mut String) 
         // Do not repeat a meaning's part of speech if it is the same as the previous meaning
         if !parts.is_empty() && parts != *prev_parts_of_speech {
             *prev_parts_of_speech = parts.clone();
-            format!("[{}]\n    ", parts.bright_blue())
+            format!("{}\n    ", parts.bright_blue())
         } else {
             String::new()
         }
@@ -230,12 +230,13 @@ fn format_sense(value: &Value, index: usize, prev_parts_of_speech: &mut String) 
         true
     };
 
+    let index_str = format!("{}.",(index + 1));
     let tags = format_sense_tags(value);
 
     (format!(
-        "{}{}. {} {}",
+        "{}{} {} {}",
         parts_of_speech,
-        (index + 1).to_string().bright_black(),
+        index_str.bright_black(),
         english_definiton
             .iter()
             .map(|i| value_to_str(i))
