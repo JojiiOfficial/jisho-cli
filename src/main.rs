@@ -149,17 +149,11 @@ fn main() -> Result<(), ureq::Error> {
 }
 
 fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> {
-    let japanese = value_to_arr(value.get("japanese")?).get(0)?.to_owned();
+    let japanese = value_to_arr(value.get("japanese")?);
+    let main_form = japanese.get(0)?;
     let mut num_of_lines = 0;
 
-    let reading = japanese
-        .get("reading")
-        .map(|i| value_to_str(i))
-        .unwrap_or(query);
-
-    let word = value_to_str(japanese.get("word").unwrap_or(japanese.get("reading")?));
-
-    let mut aux = format!("{}[{}] {}\n", word, reading, format_result_tags(value));
+    let mut aux = format!("{} {}\n", format_form(query, main_form)?, format_result_tags(value));
     *output += &aux;
 
     // Print senses
@@ -180,8 +174,38 @@ fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> 
         *output += &aux;
     }
 
+    // Print alternative readings and kanji usage
+    match japanese.get(1) {
+        Some (form) => {
+            num_of_lines += 2;
+
+            *output += &format!("    {}", "Other forms\n".bright_blue());
+
+            aux = format!("    {}", format_form(query, form)?);
+            *output += &aux;
+
+            for form in japanese.get(2).iter() {
+                aux = format!(", {}", format_form(query, form)?);
+                *output += &aux;
+            }
+            output.push('\n');
+        }
+        None => {}
+    }
+
     num_of_lines += senses.iter().count() + 1;
     Some(num_of_lines)
+}
+
+fn format_form(query: &str, form: &Value) -> Option<String> {
+    let reading = form
+        .get("reading")
+        .map(|i| value_to_str(i))
+        .unwrap_or(query);
+
+    let word = value_to_str(form.get("word").unwrap_or(form.get("reading")?));
+
+    Some(format!("{}[{}]", word, reading))
 }
 
 fn format_sense(value: &Value, index: usize, prev_parts_of_speech: &mut String) -> (String, bool) {
