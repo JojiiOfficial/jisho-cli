@@ -153,8 +153,7 @@ fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> 
     let main_form = japanese.get(0)?;
     let mut num_of_lines = 0;
 
-    let mut aux = format!("{} {}\n", format_form(query, main_form)?, format_result_tags(value));
-    *output += &aux;
+    *output += &format!("{} {}\n", format_form(query, main_form)?, format_result_tags(value));
 
     // Print senses
     let senses = value_to_arr(value.get("senses")?);
@@ -170,8 +169,7 @@ fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> 
             num_of_lines += 1;
         }
 
-        aux = format!("    {}\n", sense_str);
-        *output += &aux;
+        *output += &format!("    {}\n", sense_str);
     }
 
     // Print alternative readings and kanji usage
@@ -181,12 +179,10 @@ fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> 
 
             *output += &format!("    {}", "Other forms\n".bright_blue());
 
-            aux = format!("    {}", format_form(query, form)?);
-            *output += &aux;
+            *output += &format!("    {}", format_form(query, form)?);
 
             for form in japanese.get(2).iter() {
-                aux = format!(", {}", format_form(query, form)?);
-                *output += &aux;
+                *output += &format!(", {}", format_form(query, form)?);
             }
             output.push('\n');
         }
