@@ -178,11 +178,10 @@ fn print_item(query: &str, value: &Value, output: &mut String) -> Option<usize> 
             num_of_lines += 2;
 
             *output += &format!("    {}", "Other forms\n".bright_blue());
-
             *output += &format!("    {}", format_form(query, form)?);
 
-            for form in japanese.get(2).iter() {
-                *output += &format!(", {}", format_form(query, form)?);
+            for i in 2..japanese.len() {
+                *output += &format!(", {}", format_form(query, japanese.get(i)?)?);
             }
             output.push('\n');
         }
